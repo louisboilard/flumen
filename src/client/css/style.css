@@ -1,0 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+
+* {
+  font-family: "Roboto", sans-serif;
+}
+
+body {
+  background: #0f0f0f;
+  color: white;
+}
+
+#canvas-container {
+   width: 100%;
+   text-align:center;
+}
+#canvas {
+    /* position: absolute; */
+    margin:0 auto;
+}
