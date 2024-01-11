@@ -21,6 +21,8 @@ ws.onopen = function() {
     // ws.send("Message to send");
 };
 
+var img = new Image();
+// var decoder = new TextDecoder();
 ws.onmessage = function (evt) {
    var start = performance.now();
    var imgCanv = document.getElementById("imgCanvas");
@@ -30,18 +32,24 @@ ws.onmessage = function (evt) {
    }
 
    var ctx = imgCanv.getContext("2d");
-   // console.log("Message received: ", evt.data);
+   // console.log(evt.data);
 
-   // draw image data
-   ctx.putImageData(
-       new ImageData(new Uint8ClampedArray(evt.data), 200, 200),
-       0, 0,
-   );
+   // var decoded = decoder.decode(evt.data);
+   img.src = "data:image/jpeg;base64," + evt.data;
+   img.onload = function () {
+      ctx.drawImage(img, 0, 0);
+    };
+
+   // // draw image data
+   // ctx.putImageData(
+   //     new ImageData(new Uint8ClampedArray(evt.data), 200, 200),
+   //     0, 0,
+   // );
    var end = performance.now();
    console.log("took: ", end-start, " ms.");
 };
 
-ws.onclose = function() { 
+ws.onclose = function() {
     console.log("WebSocket closed.");
 };
 

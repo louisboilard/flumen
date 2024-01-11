@@ -41,12 +41,12 @@ async fn main() {
     let addr = server.local_addr();
     println!("Listening on {addr}");
 
+    let tcp_listener = TcpListener::bind(&"127.0.0.1:7006").await.unwrap();
+    let tcp_addr = tcp_listener.local_addr().unwrap();
+    println!("tcp listener listening on {tcp_addr}");
+
     // Receive rgba data from a single tcp client and update sender accordingly
     tokio::spawn(async move {
-        let tcp_listener = TcpListener::bind(&"127.0.0.1:7006").await.unwrap();
-        let tcp_addr = tcp_listener.local_addr().unwrap();
-        println!("tcp listener listening on {tcp_addr}");
-
         loop {
             let (mut socket, client_addr) = tcp_listener
                 .accept()
@@ -55,20 +55,39 @@ async fn main() {
 
             println!("new tcp client conn: {client_addr}");
 
-            let mut buf = vec![0; 160_000];
+            let mut prefix : [u8; 4] = [0,0,0,0];
             loop {
-                let n = socket
-                    .read(&mut buf)
+                let mut n = socket
+                    .read_exact(&mut prefix)
                     .await
                     .expect("failed to read data from socket");
 
                 if n == 0 {
-                    // TODO: fix this nonsense.
-                    let _ = tx.send(buf.clone());
-                    println!("sent {n} bytes");
-                    println!("sent {} bytes", buf.len());
                     println!("returning");
                     return;
+                }
+
+                let prefix_val = i32::from_be_bytes(prefix);
+                let mut buf = vec![0; prefix_val as usize];
+
+                n = socket
+                    // .read(&mut buf)
+                    .read_exact(&mut buf)
+                    .await
+                    .expect("failed to read data from socket");
+
+                if n != 0 {
+                    // let x = include_bytes!("../square_based.png");
+                    // buf.append(&mut x.to_vec());
+                    // let x_vec : Vec<u8> = x.to_vec();
+                    // let _ = tx.send(x_vec);
+
+                    // TODO: fix this nonsense.
+                    let _ = tx.send(buf.clone());
+                    // println!("{:?}", buf);
+                    // println!("sent {} bytes", buf.len());
+                    // println!("returning");
+                    // return;
                 }
             }
         }
@@ -77,7 +96,7 @@ async fn main() {
     server.await.unwrap();
 }
 
-/// Initial http request handler, registers fn before "upgrading" http to ws.
+/// Initial request handler, registers fn before "upgrading" http to ws.
 #[axum::debug_handler]
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     println!("new browser client.");
@@ -94,11 +113,14 @@ async fn broadcast(app_state: AppState, mut ws: WebSocket) {
     let mut rx = app_state.tx.subscribe();
 
     while let Ok(rgba) = rx.recv().await {
-        println!("~sending data~");
-        ws.send(Message::Binary(rgba))
+        // println!("~sending data~");
+        let result = String::from_utf8(rgba).unwrap();
+        // ws.send(Message::Binary(rgba))
+        ws.send(Message::Text(result))
             .await
             .expect("ws::could not send");
     }
+    println!("quitting.");
 }
 
 // The following handlers are for testing purposes,
