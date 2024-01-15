@@ -12,18 +12,22 @@ use axum::{
     routing::get,
     Router, Server,
 };
-use tokio::{io::AsyncReadExt, net::TcpListener, sync::broadcast};
+use tokio::{
+    io::AsyncReadExt,
+    net::{TcpListener, TcpStream},
+    sync::broadcast,
+};
 
-type RGBA = Vec<u8>;
+type RawImg = Vec<u8>;
 
 #[derive(Clone)]
 struct AppState {
-    tx: broadcast::Sender<RGBA>,
+    tx: broadcast::Sender<RawImg>,
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel::<RGBA>(1);
+    let (tx, _) = broadcast::channel::<RawImg>(1);
 
     tracing_subscriber::fmt::init();
 
@@ -39,61 +43,29 @@ async fn main() {
 
     let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
     let addr = server.local_addr();
-    println!("Listening on {addr}");
+    println!("listening on {addr}");
+
+    tokio::spawn(async move {
+        server.await.unwrap();
+    });
 
     let tcp_listener = TcpListener::bind(&"127.0.0.1:7006").await.unwrap();
     let tcp_addr = tcp_listener.local_addr().unwrap();
     println!("tcp listener listening on {tcp_addr}");
 
-    // Receive rgba data from a single tcp client and update sender accordingly
-    tokio::spawn(async move {
-        loop {
-            let (mut socket, client_addr) = tcp_listener
-                .accept()
-                .await
-                .expect("could not accept tcp conn");
+    loop {
+        let (mut socket, client_addr) = tcp_listener
+            .accept()
+            .await
+            .expect("could not accept tcp conn");
 
+        let tx_c = tx.clone();
+
+        tokio::spawn(async move {
             println!("new tcp client conn: {client_addr}");
-
-            let mut prefix : [u8; 4] = [0,0,0,0];
-            loop {
-                let mut n = socket
-                    .read_exact(&mut prefix)
-                    .await
-                    .expect("failed to read data from socket");
-
-                if n == 0 {
-                    println!("returning");
-                    return;
-                }
-
-                let prefix_val = i32::from_be_bytes(prefix);
-                let mut buf = vec![0; prefix_val as usize];
-
-                n = socket
-                    // .read(&mut buf)
-                    .read_exact(&mut buf)
-                    .await
-                    .expect("failed to read data from socket");
-
-                if n != 0 {
-                    // let x = include_bytes!("../square_based.png");
-                    // buf.append(&mut x.to_vec());
-                    // let x_vec : Vec<u8> = x.to_vec();
-                    // let _ = tx.send(x_vec);
-
-                    // TODO: fix this nonsense.
-                    let _ = tx.send(buf.clone());
-                    // println!("{:?}", buf);
-                    // println!("sent {} bytes", buf.len());
-                    // println!("returning");
-                    // return;
-                }
-            }
-        }
-    });
-
-    server.await.unwrap();
+            process(&mut socket, tx_c).await;
+        });
+    }
 }
 
 /// Initial request handler, registers fn before "upgrading" http to ws.
@@ -114,13 +86,52 @@ async fn broadcast(app_state: AppState, mut ws: WebSocket) {
 
     while let Ok(rgba) = rx.recv().await {
         // println!("~sending data~");
-        let result = String::from_utf8(rgba).unwrap();
-        // ws.send(Message::Binary(rgba))
-        ws.send(Message::Text(result))
+        // let result = String::from_utf8(rgba).unwrap();
+        ws.send(Message::Binary(rgba))
+            // ws.send(Message::Text(result))
             .await
             .expect("ws::could not send");
     }
     println!("quitting.");
+}
+
+// Receive rgba data from a single tcp client and update sender accordingly
+async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<RawImg>) {
+    let mut prefix: [u8; 4] = [0, 0, 0, 0];
+    loop {
+        let mut n = socket
+            .read_exact(&mut prefix)
+            .await
+            .expect("failed to read data from socket");
+
+        if n == 0 {
+            println!("returning");
+            return;
+        }
+
+        let prefix_val = i32::from_be_bytes(prefix);
+        let mut buf = vec![0; prefix_val as usize];
+
+        n = socket
+            // .read(&mut buf)
+            .read_exact(&mut buf)
+            .await
+            .expect("failed to read data from socket");
+
+        if n != 0 {
+            // let x = include_bytes!("../square_based.png");
+            // buf.append(&mut x.to_vec());
+            // let x_vec : Vec<u8> = x.to_vec();
+            // let _ = tx.send(x_vec);
+
+            // TODO: fix this nonsense.
+            let _ = tx.send(buf.clone());
+            // println!("{:?}", buf);
+            // println!("sent {} bytes", buf.len());
+            // println!("returning");
+            // return;
+        }
+    }
 }
 
 // The following handlers are for testing purposes,
