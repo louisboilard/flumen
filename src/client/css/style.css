@@ -4,17 +4,25 @@
   font-family: "Roboto", sans-serif;
 }
 
-body {
+html, body {
   background: #0f0f0f;
-  /* background: #ffe4c4; */
   color: white;
 }
 
 #canvas-container {
-   width: 100%;
-   text-align:center;
+   border:2px solid #ffffff;
+   display: flex;
+   text-align: center;
+   resize:horizontal;
+   max-width: 75%;
+   min-width: 25%;
+   margin:5% auto;
+   align-items: center;
+   justify-content: center;
+   overflow:hidden;
 }
-#canvas {
-    /* position: absolute; */
-    margin:0 auto;
+
+#imgCanvas {
+   margin:0 auto;
+   width: 100%;
 }
