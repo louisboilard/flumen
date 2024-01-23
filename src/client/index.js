@@ -1,8 +1,10 @@
 // ------------- Initialization -------------
 const container = document.getElementById("canvas-container");
 var canvas = document.getElementById("imgCanvas");
+var img = new Image();
+const video = document.getElementById('videoPlayBack');
 
-function initialValidation() {
+function init() {
   if (canvas === null) {
      alert("could not grab canvas by id.");
      return;
@@ -11,14 +13,25 @@ function initialValidation() {
      alert("could not grab container by id.");
      return;
   }
+
+  const ratio = window.devicePixelRatio;
+  // Respect the current screen's pixel ratio
+  canvas.width  = canvas.width * ratio;
+  canvas.height = canvas.height * ratio;
+
+  if (video === null) {
+     alert("could not grab video by id.");
+     return;
+  }
+  const stream = canvas.captureStream(45);
+  video.srcObject = stream;
 }
-initialValidation();
+init();
 
 
 // ------------- Websockets / Drawing logic -------------
 var ws = new WebSocket("ws://localhost:7005/ws");
 ws.binaryType = "arraybuffer";
-var img = new Image();
 
 ws.onopen = function() {
     console.log("WebSocket connected.");
@@ -35,8 +48,9 @@ function base64Draw(ctx, data) {
 function binaryJpegDraw(ctx, binaryJpeg) {
    var blob = new Blob([binaryJpeg], {type: 'application/octet-binary'});
    var url = URL.createObjectURL(blob);
+
    img.onload = function () {
-     // TODO: make sure this isn't causing blurr
+     // TODO: make sure this isn't causing blur
      ctx.drawImage(this, 0, 0, canvas.width, canvas.height);
      // ctx.drawImage(this, 0, 0);
    };
@@ -44,12 +58,12 @@ function binaryJpegDraw(ctx, binaryJpeg) {
 }
 
 ws.onmessage = function (evt) {
-   var start = performance.now();
+   // var start = performance.now();
    var ctx = canvas.getContext("2d");
    binaryJpegDraw(ctx, evt.data);
 
-   var end = performance.now();
-   console.log("took: ", end-start, " ms.");
+   // var end = performance.now();
+   // console.log("took: ", end-start, " ms.");
 };
 
 ws.onclose = function() {
@@ -59,18 +73,3 @@ ws.onclose = function() {
 ws.onerror = function(err) { 
     console.log(err);
 };
-
-// ------------- Resizing -------------
-
-// Register a resizeObserver on the canvas and keep ratio
-var width = container.style.width;
-function canvasResize() {
-  const newWidth = container.style.width;
-  if (newWidth !== width) {
-    width = newWidth;
-    canvas.width  = parseInt(width);
-    canvas.height = parseInt(width) * 0.5625; // 16/9
-    console.log("xyz width height", canvas.width, canvas.height);
-  }
-};
-new ResizeObserver(canvasResize).observe(container)
