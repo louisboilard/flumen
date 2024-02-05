@@ -146,38 +146,32 @@ async fn broadcast(app_state: AppState, ws: WebSocket) {
 /// Receives frame data from tcp client and send frames through the channel
 async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Missive>) {
     let mut prefix: [u8; 4] = [0, 0, 0, 0];
+    let mut prefix_val: usize;
+    let mut buf = vec![0; 1024 * 512];
     loop {
-        let mut n = socket
-            .read_exact(&mut prefix)
-            .await
-            .expect("failed to read data from socket");
-
-        if n == 0 {
-            println!("returning");
-            return;
+        match socket.read_exact(&mut prefix).await {
+            Ok(n) => {
+                if n == 0 {
+                    println!("Prefix is 0, returning");
+                    break;
+                }
+                prefix_val = i32::from_be_bytes(prefix) as usize;
+            }
+            Err(e) => {
+                println!("Error reading prefix from tcp socket: {}", e);
+                break;
+            }
         }
 
-        let prefix_val = i32::from_be_bytes(prefix);
-        let mut buf = vec![0; prefix_val as usize];
-
-        n = socket
-            // .read(&mut buf)
-            .read_exact(&mut buf)
-            .await
-            .expect("failed to read data from socket");
-
-        if n != 0 {
-            // let x = include_bytes!("../square_based.png");
-            // buf.append(&mut x.to_vec());
-            // let x_vec : Vec<u8> = x.to_vec();
-            // let _ = tx.send(x_vec);
-
-            // TODO: fix this nonsense.
-            let _ = tx.send(buf.clone());
-            // println!("{:?}", buf);
-            // println!("sent {} bytes", buf.len());
-            // println!("returning");
-            // return;
+        match socket.read_exact(&mut buf[..prefix_val]).await {
+            Ok(_) => {
+                // println!("sent {} bytes", buf.len());
+                let _ = tx.send(Missive::Frame((&buf[..prefix_val]).to_vec()));
+            }
+            Err(e) => {
+                println!("Error reading frame from tcp socket: {}", e);
+                break;
+            }
         }
     }
 }
