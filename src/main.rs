@@ -56,9 +56,7 @@ async fn main() {
         .route("/style.css", get(get_css))
         .with_state(app_state.clone());
 
-    // let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
-    let server =
-        Server::bind(&"192.168.2.19:8000".parse().unwrap()).serve(router.into_make_service());
+    let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
 
     tokio::spawn(async move {
         println!("listening on {}", server.local_addr());

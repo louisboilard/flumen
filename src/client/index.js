@@ -29,8 +29,7 @@ function init() {
 init();
 
 // ------------- Websockets / Drawing logic -------------
-// var ws = new WebSocket("ws://localhost:7005/ws");
-var ws = new WebSocket("ws://192.168.2.19:8000/ws");
+var ws = new WebSocket("ws://localhost:7005/ws");
 ws.binaryType = "arraybuffer";
 
 ws.onopen = function() {
