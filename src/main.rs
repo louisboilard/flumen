@@ -16,7 +16,7 @@ use futures_util::{sink::SinkExt, stream::StreamExt};
 use tokio::{
     io::AsyncReadExt,
     net::{TcpListener, TcpStream},
-    sync::broadcast,
+    sync::broadcast::{self, error::RecvError},
 };
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel::<Missive>(1);
+    let (tx, _) = broadcast::channel::<Missive>(32);
 
     tracing_subscriber::fmt::init();
 
@@ -56,7 +56,9 @@ async fn main() {
         .route("/style.css", get(get_css))
         .with_state(app_state.clone());
 
-    let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
+    // let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
+    let server =
+        Server::bind(&"192.168.2.19:8000".parse().unwrap()).serve(router.into_make_service());
 
     tokio::spawn(async move {
         println!("listening on {}", server.local_addr());
@@ -101,6 +103,8 @@ async fn broadcast(app_state: AppState, ws: WebSocket) {
         conn_id,
         app_state.tx.receiver_count()
     );
+
+    // handles messages received from the browser
     tokio::spawn(async move {
         while let Some(Ok(message)) = receiver.next().await {
             match message {
@@ -118,26 +122,43 @@ async fn broadcast(app_state: AppState, ws: WebSocket) {
         }
     });
 
-    while let Ok(data) = rx.recv().await {
-        match data {
-            Missive::Frame(raw_img) => {
-                sender
-                    .send(Message::Binary(raw_img))
-                    .await
-                    .expect("ws::could not send frame");
-            }
-            Missive::ChatText(text) => {
-                sender
-                    .send(Message::Text(text))
-                    .await
-                    .expect("ws::could not send chat message");
-            }
-            // end loop -> close the ws stream and drop the current rx
-            Missive::Close(id) => {
-                if id == conn_id {
-                    break;
+    // handles the receiving end of the broadcast channel
+    loop {
+        match rx.recv().await {
+            Ok(data) => {
+                match data {
+                    Missive::Frame(raw_img) => {
+                        sender
+                            .send(Message::Binary(raw_img))
+                            .await
+                            .expect("ws::could not send frame");
+                    }
+                    Missive::ChatText(text) => {
+                        sender
+                            .send(Message::Text(text))
+                            .await
+                            .expect("ws::could not send chat message");
+                    }
+                    // end loop -> close the ws stream and drop the current rx
+                    Missive::Close(id) => {
+                        if id == conn_id {
+                            break;
+                        }
+                    }
                 }
             }
+            Err(e) => match e {
+                RecvError::Lagged(n) => {
+                    // When a receiver laggs behind too much, give it
+                    // the opportunity to catchup by resubbing to the channel
+                    rx = rx.resubscribe();
+                    println!("Receiver of conn {} lagged by {}.", conn_id, n);
+                }
+                _ => {
+                    println!("No more active senders, closing.");
+                    break;
+                }
+            },
         }
     }
     println!("Closed browser client {}.", conn_id);
