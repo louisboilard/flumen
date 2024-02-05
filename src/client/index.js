@@ -23,18 +23,18 @@ function init() {
         alert("could not grab video by id.");
         return;
     }
-    const stream = canvas.captureStream(30);
+    const stream = canvas.captureStream(25);
     video.srcObject = stream;
 }
 init();
 
-
 // ------------- Websockets / Drawing logic -------------
-var ws = new WebSocket("ws://localhost:7005/ws");
+// var ws = new WebSocket("ws://localhost:7005/ws");
+var ws = new WebSocket("ws://192.168.2.19:8000/ws");
 ws.binaryType = "arraybuffer";
 
 ws.onopen = function() {
-    console.log("WebSocket connected.");
+    console.log("connected.");
 };
 
 // cleanup on browser refresh/close
@@ -63,18 +63,6 @@ function sendMessage() {
     messageInput.value = '';
 }
 
-// var chat = document.querySelector("ul");
-// function appendchat2(message) {
-//     var newMessage = document.createElement("li");
-//     var text = document.createElement("blockquote");
-//
-//     newMessage.innerText = 'louis';
-//     text.innerText = message;
-//
-//     newMessage.appendChild(text);
-//     chat.appendChild(newMessage);
-// }
-
 function appendChat(data) {
     const chatMessages = document.querySelector('.chat-messages');
     const messageElement = document.createElement('div');
@@ -96,9 +84,7 @@ function draw(ctx, frame) {
     var url = URL.createObjectURL(blob);
 
     img.onload = function() {
-        // TODO: make sure this isn't causing blur
         ctx.drawImage(this, 0, 0, canvas.width, canvas.height);
-        // ctx.drawImage(this, 0, 0);
     };
     img.src = url;
 }
@@ -108,17 +94,15 @@ ws.onmessage = function(evt) {
     if (evt.data instanceof ArrayBuffer) {
         var ctx = canvas.getContext("2d");
         draw(ctx, evt.data);
+        // var end = performance.now();
+        // console.log("took: ", end-start, " ms.");
         return;
     }
     appendChat(evt.data);
-
-    // var end = performance.now();
-    // console.log("took: ", end-start, " ms.");
 };
 
 ws.onclose = function() {
     console.log("WebSocket closed.");
-    // alert("WebSocket closed.");
 };
 
 ws.onerror = function(err) {

@@ -40,6 +40,7 @@ html, body {
   #chat {
     display: none;
   }
+  /* restrict canvas size on mobile/small devices */
   canvas {
     width:380;
     height:180;
@@ -102,11 +103,4 @@ html, body {
 
 #send-button:hover {
   background-color: #D3A9F8;
-}
-
-@keyframes show {
-  100% {
-    opacity: 1;
-    transform: none;
-  }
 }
