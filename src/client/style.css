@@ -40,10 +40,6 @@ html, body {
   #chat {
     display: none;
   }
-  canvas {
-    width:380;
-    height:180;
-  }
 }
 
 .chat-window {

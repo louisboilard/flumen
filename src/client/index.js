@@ -14,8 +14,8 @@ function init() {
         return;
     }
 
-    const ratio = window.devicePixelRatio;
     // Respect the current screen's pixel ratio
+    const ratio = window.devicePixelRatio;
     canvas.width = canvas.width * ratio;
     canvas.height = canvas.height * ratio;
 
@@ -23,7 +23,7 @@ function init() {
         alert("could not grab video by id.");
         return;
     }
-    const stream = canvas.captureStream(45);
+    const stream = canvas.captureStream(30);
     video.srcObject = stream;
 }
 init();
@@ -91,8 +91,8 @@ function base64Draw(ctx, data) {
     };
 }
 
-function draw(ctx, binaryJpeg) {
-    var blob = new Blob([binaryJpeg], { type: 'application/octet-binary' });
+function draw(ctx, frame) {
+    var blob = new Blob([frame], { type: 'application/octet-binary' });
     var url = URL.createObjectURL(blob);
 
     img.onload = function() {
