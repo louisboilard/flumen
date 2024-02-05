@@ -1,22 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Streamer</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link href="./css/style.css" rel="stylesheet">
-    </head>
-    <body>
-        <div id="canvas-container">
-           <!-- hide canvas since it's used as a stream for the video element -->
-           <canvas hidden id="imgCanvas" width="1280" height="720">
-              Your browser doesn't support canvas
-            </canvas>
-            <video id="videoPlayBack" controls playsinline autoplay muted >
-              Your browser doesn't support videos
-            </video>
-        </div>
 
-        <script type="text/javascript" src="./index.js"></script>
-    </body>
+<head>
+    <title>Streamer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="./css/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <div id="canvas-container">
+        <!-- hide canvas since it's used as a stream for the video element -->
+        <canvas hidden id="imgCanvas" width="1280" height="720">
+            Your browser doesn't support canvas
+        </canvas>
+        <video id="videoPlayBack" controls playsinline autoplay muted>
+            Your browser doesn't support videos
+        </video>
+    </div>
+
+
+    <div id="chat">
+        <div class="chat-window">
+            <div class="chat-area">
+                <div class="chat-messages">
+                </div>
+            </div>
+            <div class="user-input">
+                <input type="text" id="message-input" placeholder="Type your insults...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="./index.js"></script>
+</body>
+
 </html>
