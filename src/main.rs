@@ -1,7 +1,6 @@
 //! Flumen
-//! Receives raw/binary RGBA data via tcp and broadcasts
-//! to browser clients using websockets.
-
+//! Receives the binary representation of a frame/image via tcp and broadcasts
+//! it to the connected browser clients using websockets.
 use axum::{
     extract::{
         ws::{Message, WebSocket},
@@ -12,22 +11,38 @@ use axum::{
     routing::get,
     Router, Server,
 };
+
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use tokio::{
     io::AsyncReadExt,
     net::{TcpListener, TcpStream},
     sync::broadcast,
 };
+use uuid::Uuid;
 
-type RawImg = Vec<u8>;
+/// The binary representation of a frame/image in any given format
+type Image = Vec<u8>;
 
+/// The directives/data passed between producers/consumers
+#[derive(Clone)]
+enum Missive {
+    /// ChatText -> Received from a websocket and broadcasted back
+    ChatText(String),
+    /// Close -> When wanting to close a specific websocket conn
+    Close(Uuid),
+    /// Frame -> Received from a client and broadcasted.
+    Frame(Image),
+}
+
+/// Type shared between ws conns
 #[derive(Clone)]
 struct AppState {
-    tx: broadcast::Sender<RawImg>,
+    tx: broadcast::Sender<Missive>,
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel::<RawImg>(1);
+    let (tx, _) = broadcast::channel::<Missive>(1);
 
     tracing_subscriber::fmt::init();
 
@@ -42,16 +57,17 @@ async fn main() {
         .with_state(app_state.clone());
 
     let server = Server::bind(&"127.0.0.1:7005".parse().unwrap()).serve(router.into_make_service());
-    let addr = server.local_addr();
-    println!("listening on {addr}");
 
     tokio::spawn(async move {
+        println!("listening on {}", server.local_addr());
         server.await.unwrap();
     });
 
     let tcp_listener = TcpListener::bind(&"127.0.0.1:7006").await.unwrap();
-    let tcp_addr = tcp_listener.local_addr().unwrap();
-    println!("tcp listener listening on {tcp_addr}");
+    println!(
+        "tcp listener listening on {}",
+        tcp_listener.local_addr().unwrap()
+    );
 
     loop {
         let (mut socket, client_addr) = tcp_listener
@@ -59,44 +75,76 @@ async fn main() {
             .await
             .expect("could not accept tcp conn");
 
-        let tx_c = tx.clone();
+        let tx = tx.clone();
 
         tokio::spawn(async move {
             println!("new tcp client conn: {client_addr}");
-            process(&mut socket, tx_c).await;
+            process(&mut socket, tx).await;
         });
     }
 }
 
-/// Initial request handler, registers fn before "upgrading" http to ws.
+// Initial request handler, registers fn before "upgrading" http to ws.
 #[axum::debug_handler]
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    println!("new browser client.");
     ws.on_upgrade(|ws: WebSocket| async { broadcast(state, ws).await })
 }
 
-/// Actual ws state machine (one per conn).
-async fn broadcast(app_state: AppState, mut ws: WebSocket) {
-    // ws.send(Message::Text("hello hello hello".to_string()))
-    //     .await
-    //     .expect("ws::could not send hello");
-
-    // register a receiver
+/// Per conn ws state machine where server<->browser interactions are handled.
+async fn broadcast(app_state: AppState, ws: WebSocket) {
+    let (mut sender, mut receiver) = ws.split();
     let mut rx = app_state.tx.subscribe();
+    let conn_id = Uuid::new_v4();
 
-    while let Ok(rgba) = rx.recv().await {
-        // println!("~sending data~");
-        // let result = String::from_utf8(rgba).unwrap();
-        ws.send(Message::Binary(rgba))
-            // ws.send(Message::Text(result))
-            .await
-            .expect("ws::could not send");
+    println!(
+        "New browser client {}. Currently broadcasting to {} clients",
+        conn_id,
+        app_state.tx.receiver_count()
+    );
+    tokio::spawn(async move {
+        while let Some(Ok(message)) = receiver.next().await {
+            match message {
+                Message::Close(_) => {
+                    // Indicates we want to close the conn.
+                    let _ = app_state.tx.send(Missive::Close(conn_id));
+                    break;
+                }
+                Message::Text(text) => {
+                    let _ = app_state.tx.send(Missive::ChatText(text));
+                }
+                // browser clients should only send chat texts or close missives
+                _ => println!("browser client sent something unexpected"),
+            }
+        }
+    });
+
+    while let Ok(data) = rx.recv().await {
+        match data {
+            Missive::Frame(raw_img) => {
+                sender
+                    .send(Message::Binary(raw_img))
+                    .await
+                    .expect("ws::could not send frame");
+            }
+            Missive::ChatText(text) => {
+                sender
+                    .send(Message::Text(text))
+                    .await
+                    .expect("ws::could not send chat message");
+            }
+            // end loop -> close the ws stream and drop the current rx
+            Missive::Close(id) => {
+                if id == conn_id {
+                    break;
+                }
+            }
+        }
     }
-    println!("quitting.");
+    println!("Closed browser client {}.", conn_id);
 }
 
-// Receive rgba data from a single tcp client and update sender accordingly
-async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<RawImg>) {
+/// Receives frame data from tcp client and send frames through the channel
+async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Missive>) {
     let mut prefix: [u8; 4] = [0, 0, 0, 0];
     loop {
         let mut n = socket
@@ -159,7 +207,7 @@ async fn get_js() -> impl IntoResponse {
 
 #[axum::debug_handler]
 async fn get_css() -> impl IntoResponse {
-    let css = tokio::fs::read_to_string("./src/client/css/style.css")
+    let css = tokio::fs::read_to_string("./src/client/style.css")
         .await
         .expect("can't find css");
 
