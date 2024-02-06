@@ -1,6 +1,7 @@
 // ------------- Initialization -------------
 const container = document.getElementById("canvas-container");
 var canvas = document.getElementById("imgCanvas");
+var ctx = canvas.getContext("2d", { alpha: false });
 var img = new Image();
 const video = document.getElementById('videoPlayBack');
 
@@ -78,12 +79,13 @@ function base64Draw(ctx, data) {
     };
 }
 
-function draw(ctx, frame) {
+function draw(frame) {
     var blob = new Blob([frame], { type: 'application/octet-binary' });
     var url = URL.createObjectURL(blob);
 
     img.onload = function() {
         ctx.drawImage(this, 0, 0, canvas.width, canvas.height);
+        // ctx.drawImage(this, 0, 0);
     };
     img.src = url;
 }
@@ -91,8 +93,8 @@ function draw(ctx, frame) {
 ws.onmessage = function(evt) {
     // var start = performance.now();
     if (evt.data instanceof ArrayBuffer) {
-        var ctx = canvas.getContext("2d");
-        draw(ctx, evt.data);
+        // var ctx = canvas.getContext("2d", { alpha: false });
+        draw(evt.data);
         // var end = performance.now();
         // console.log("took: ", end-start, " ms.");
         return;
@@ -102,6 +104,17 @@ ws.onmessage = function(evt) {
 
 ws.onclose = function() {
     console.log("WebSocket closed.");
+
+    // show "stream ended" message
+    img.src = "";
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.font = "100px sans-serif";
+    ctx.fillText("Stream ended.", canvas.width/2, canvas.height/2);
 };
 
 ws.onerror = function(err) {
