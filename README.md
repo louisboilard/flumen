@@ -22,9 +22,9 @@ etc..)) and asynchronously broadcasts them to the connected browser clients via
 websockets. The frames are sent to the rust service prefixed with a 4 bytes big
 endian integer that tells the server how many bytes to read for the upcoming
 frame, the service reads the frame and proceeds to broadcast it to the
-connected browser.
+connected browsers.
 
-The browser clients uses an html5 canvas as a video stream source that is mapped to an
+The browser client uses an html5 canvas as a video stream source that is mapped to an
 html video element (simply for ui purposes, could display the canvas directly).
 The canvas is hidden, when receiving a new frame via websocket, the image that
 is the source of the canvas is updated to that binary array. Since the image
