@@ -22,7 +22,9 @@ etc..)) and asynchronously broadcasts them to the connected browser clients via
 websockets. The frames are sent to the rust service prefixed with a 4 bytes big
 endian integer that tells the server how many bytes to read for the upcoming
 frame, the service reads the frame and proceeds to broadcast it to the
-connected browsers.
+connected browsers. The broadcasting is done using a
+single-producer/multi-consummer broadcast channel, where the producer sends
+ordered frames to the subscribed consummers (browser clients).
 
 The browser client uses an html5 canvas as a video stream source that is mapped to an
 html video element (simply for ui purposes, could display the canvas directly).

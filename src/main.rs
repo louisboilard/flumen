@@ -115,7 +115,7 @@ async fn broadcast(app_state: AppState, ws: WebSocket) {
                     let _ = app_state.tx.send(Missive::ChatText(text));
                 }
                 // browser clients should only send chat texts or close missives
-                _ => println!("browser client sent something unexpected"),
+                _ => eprintln!("browser client sent something unexpected"),
             }
         }
     });
@@ -171,24 +171,23 @@ async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Miss
         match socket.read_exact(&mut prefix).await {
             Ok(n) => {
                 if n == 0 {
-                    println!("Prefix is 0, returning");
+                    println!("Received prefix of 0, closing tcp stream");
                     break;
                 }
                 prefix_val = i32::from_be_bytes(prefix) as usize;
             }
             Err(e) => {
-                println!("Error reading prefix from tcp socket: {}", e);
+                eprintln!("Error reading prefix from tcp socket: {}", e);
                 break;
             }
         }
 
         match socket.read_exact(&mut buf[..prefix_val]).await {
             Ok(_) => {
-                // println!("sent {} bytes", buf.len());
-                let _ = tx.send(Missive::Frame((&buf[..prefix_val]).to_vec()));
+                let _ = tx.send(Missive::Frame((buf[..prefix_val]).to_vec()));
             }
             Err(e) => {
-                println!("Error reading frame from tcp socket: {}", e);
+                eprintln!("Error reading frame from tcp socket: {}", e);
                 break;
             }
         }
