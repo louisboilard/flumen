@@ -164,9 +164,12 @@ async fn broadcast(app_state: AppState, ws: WebSocket) {
 
 /// Receives frame data from tcp client and send frames through the channel
 async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Missive>) {
+    const MAX_FRAME_WIDTH: usize = 1024 * 512;
+
     let mut prefix: [u8; 4] = [0, 0, 0, 0];
     let mut prefix_val: usize;
-    let mut buf = vec![0; 1024 * 512];
+    let mut buf = vec![0; MAX_FRAME_WIDTH];
+
     loop {
         match socket.read_exact(&mut prefix).await {
             Ok(n) => {
@@ -180,6 +183,18 @@ async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Miss
                 eprintln!("Error reading prefix from tcp socket: {}", e);
                 break;
             }
+        }
+
+        // skip frames that are deemed too big
+        if prefix_val > MAX_FRAME_WIDTH {
+            eprintln!(
+                "Client send a frame of length {}, over the limit ({})",
+                prefix_val, MAX_FRAME_WIDTH
+            );
+
+            let mut handle = socket.take(prefix_val as u64);
+            let _ = tokio::io::copy(&mut handle, &mut tokio::io::sink()).await;
+            continue;
         }
 
         match socket.read_exact(&mut buf[..prefix_val]).await {
