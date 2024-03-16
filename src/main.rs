@@ -188,12 +188,11 @@ async fn process(socket: &mut TcpStream, tx: tokio::sync::broadcast::Sender<Miss
         // skip frames that are deemed too big
         if prefix_val > MAX_FRAME_WIDTH {
             eprintln!(
-                "Client send a frame of length {}, over the limit ({})",
+                "Client sent a frame of length {}, limit is: {}",
                 prefix_val, MAX_FRAME_WIDTH
             );
 
-            let mut handle = socket.take(prefix_val as u64);
-            let _ = tokio::io::copy(&mut handle, &mut tokio::io::sink()).await;
+            let _ = tokio::io::copy(&mut socket.take(prefix_val as u64), &mut tokio::io::sink()).await;
             continue;
         }
 
